@@ -1,55 +1,62 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Link, useNavigate, useParams } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { api as server } from "./services/api";
+import type { Task, TaskServer, Priority } from "./types";
 
-const api = {
-  async list() {
-    const res = await fetch("https://jsonplaceholder.typicode.com/todos");
-    const data = await res.json();
-    return data.map((t) => ({
-      id: t.id,
-      title: t.title,
-      description: "Imported from JSONPlaceholder",
-      done: t.completed,
-      priority: ["Baja", "Media", "Alta"][Math.floor(Math.random() * 3)],
-      dueDate: new Date(Date.now() + Math.floor(Math.random() * 10) * 86400000)
-        .toISOString()
-        .slice(0, 10),
-      source: "api",
-    }));
-  },
-};
+// Adaptadores servidor ⇄ UI
+const fromServer = (t: TaskServer): Task => ({
+  id: t.id,
+  title: t.title,
+  description: t.description || "",
+  done: !!t.completed,
+  priority: t.priority || "Media",
+  dueDate: t.dueDate || "",
+  source: "db",
+});
 
-const uid = () => Math.random().toString(36).slice(2, 10);
-const isOverdue = (task) => !task.done && task.dueDate && new Date(task.dueDate) < new Date();
+const toServer = (t: Task): TaskServer => ({
+  id: t.id,
+  title: t.title,
+  description: t.description || "",
+  completed: !!t.done,
+  priority: t.priority || "Media",
+  dueDate: t.dueDate || "",
+});
+
+const isOverdue = (task: Task) => !task.done && task.dueDate && new Date(task.dueDate) < new Date();
 
 function useTaskStore() {
-  const [tasks, setTasks] = useState(() => {
- 
-    return [];
-  });
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
-    localStorage.setItem("tasks@demo", JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-
-    api.list().then((seed) => setTasks(seed));
+    server
+      .list()
+      .then((rows) => setTasks(rows.map(fromServer)))
+      .catch(console.error);
   }, []);
 
   const actions = {
-    add(task) {
-      setTasks((prev) => [{ ...task, id: uid(), source: "local" }, ...prev]);
+    async add(task: Omit<Task, "id" | "source">) {
+      const created = await server.create(toServer({ ...task, id: "", source: "db" } as Task));
+      setTasks((prev) => [fromServer(created), ...prev]);
     },
-    update(id, patch) {
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    async update(id: string, patch: Partial<Task>) {
+      const current = tasks.find((t) => String(t.id) === String(id));
+      if (!current) return;
+      const merged: Task = { ...current, ...patch };
+      const updated = await server.update(id, toServer(merged));
+      setTasks((prev) => prev.map((t) => (t.id === id ? fromServer(updated) : t)));
     },
-    remove(id) {
+    async remove(id: string) {
+      await server.remove(id);
       setTasks((prev) => prev.filter((t) => t.id !== id));
     },
-    toggle(id) {
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+    async toggle(id: string) {
+      const current = tasks.find((t) => String(t.id) === String(id));
+      if (!current) return;
+      const updated = await server.update(id, toServer({ ...current, done: !current.done }));
+      setTasks((prev) => prev.map((t) => (t.id === id ? fromServer(updated) : t)));
     },
     clearAll() {
       setTasks([]);
@@ -64,7 +71,9 @@ function AppNavbar() {
     <nav className="navbar navbar-expand-lg navbar-dark bg-gradient-primary">
       <div className="container">
         <Link className="navbar-brand fw-bold d-flex align-items-center" to="/">
-          <span className="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center me-2" style={{width: '32px', height: '32px'}}>✓</span>
+          <span className="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center me-2" style={{ width: "32px", height: "32px" }}>
+            ✓
+          </span>
           Gestor de Tareas
         </Link>
         <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
@@ -100,9 +109,9 @@ function EmptyState() {
   );
 }
 
-function TaskItem({ task, onToggle, onRemove }) {
-  const getPriorityClass = (priority) => {
-    switch(priority) {
+function TaskItem({ task, onToggle, onRemove }: { task: Task; onToggle: (id: string) => void; onRemove: (id: string) => void }) {
+  const getPriorityClass = (priority: Priority) => {
+    switch (priority) {
       case "Alta": return "badge bg-danger";
       case "Media": return "badge bg-warning";
       case "Baja": return "badge bg-info";
@@ -114,13 +123,7 @@ function TaskItem({ task, onToggle, onRemove }) {
     <div className="card shadow-sm mb-3 border-0 task-card">
       <div className="card-body d-flex align-items-center gap-3 py-3">
         <div className="form-check form-check-lg">
-          <input
-            className="form-check-input"
-            type="checkbox"
-            checked={task.done}
-            onChange={() => onToggle(task.id)}
-            title="Marcar como hecha"
-          />
+          <input className="form-check-input" type="checkbox" checked={task.done} onChange={() => onToggle(task.id)} title="Marcar como hecha" />
         </div>
         <div className="flex-grow-1">
           <div className="d-flex align-items-center mb-1">
@@ -133,7 +136,7 @@ function TaskItem({ task, onToggle, onRemove }) {
             <span className="d-inline-block me-3">
               <i className="bi bi-calendar-event me-1"></i>Vence: {task.dueDate || "—"}
             </span>
-            {task.source === "api" && <span className="badge bg-light text-dark ms-2">API</span>}
+            {task.source === "db" && <span className="badge bg-light text-dark ms-2">DB</span>}
           </div>
         </div>
         <div className="d-flex gap-2 align-items-center">
@@ -148,7 +151,11 @@ function TaskItem({ task, onToggle, onRemove }) {
   );
 }
 
-function Filters({ query, setQuery, status, setStatus, priority, setPriority }) {
+function Filters({ query, setQuery, status, setStatus, priority, setPriority }: {
+  query: string; setQuery: (v: string) => void;
+  status: "all" | "open" | "done" | "overdue"; setStatus: (v: "all" | "open" | "done" | "overdue") => void;
+  priority: "all" | Priority; setPriority: (v: "all" | Priority) => void;
+}) {
   return (
     <div className="row g-3 align-items-end mb-4">
       <div className="col-md-4">
@@ -157,17 +164,17 @@ function Filters({ query, setQuery, status, setStatus, priority, setPriority }) 
           <span className="input-group-text bg-light border-end-0">
             <i className="bi bi-search text-muted"></i>
           </span>
-          <input 
-            className="form-control border-start-0" 
-            placeholder="Título o descripción" 
-            value={query} 
-            onChange={(e) => setQuery(e.target.value)} 
+          <input
+            className="form-control border-start-0"
+            placeholder="Título o descripción"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
         </div>
       </div>
       <div className="col-md-3">
         <label className="form-label fw-semibold">Estado</label>
-        <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value as any)}>
           <option value="all">Todas las tareas</option>
           <option value="open">Pendientes</option>
           <option value="done">Completadas</option>
@@ -176,7 +183,7 @@ function Filters({ query, setQuery, status, setStatus, priority, setPriority }) 
       </div>
       <div className="col-md-3">
         <label className="form-label fw-semibold">Prioridad</label>
-        <select className="form-select" value={priority} onChange={(e) => setPriority(e.target.value)}>
+        <select className="form-select" value={priority} onChange={(e) => setPriority(e.target.value as any)}>
           <option value="all">Todas las prioridades</option>
           <option value="Alta">Alta</option>
           <option value="Media">Media</option>
@@ -192,11 +199,11 @@ function Filters({ query, setQuery, status, setStatus, priority, setPriority }) 
   );
 }
 
-function TaskList({ store }) {
+function TaskList({ store }: { store: ReturnType<typeof useTaskStore> }) {
   const { tasks, actions } = store;
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [priority, setPriority] = useState("all");
+  const [status, setStatus] = useState<"all" | "open" | "done" | "overdue">("all");
+  const [priority, setPriority] = useState<"all" | Priority>("all");
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -243,20 +250,20 @@ function TaskList({ store }) {
   );
 }
 
-function TaskForm({ store }) {
+function TaskForm({ store }: { store: ReturnType<typeof useTaskStore> }) {
   const { actions } = store;
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("Media");
+  const [priority, setPriority] = useState<Priority>("Media");
   const [dueDate, setDueDate] = useState("");
 
   const canSave = title.trim().length > 0;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSave) return;
-    actions.add({ title: title.trim(), description, priority, dueDate, done: false });
+    await actions.add({ title: title.trim(), description, priority, dueDate, done: false });
     navigate("/");
   };
 
@@ -270,34 +277,22 @@ function TaskForm({ store }) {
             </button>
             <h1 className="h4 mb-0 fw-bold">Crear Nueva Tarea</h1>
           </div>
-          
+
           <div className="card shadow-sm border-0">
             <div className="card-body p-4">
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
                   <label className="form-label fw-semibold">Título *</label>
-                  <input
-                    className="form-control form-control-lg"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Ej: Preparar presentación"
-                    required
-                  />
+                  <input className="form-control form-control-lg" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Preparar presentación" required />
                 </div>
                 <div className="mb-4">
                   <label className="form-label fw-semibold">Descripción</label>
-                  <textarea 
-                    className="form-control" 
-                    rows={4} 
-                    value={description} 
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe los detalles de tu tarea..."
-                  />
+                  <textarea className="form-control" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe los detalles de tu tarea..." />
                 </div>
                 <div className="row g-3">
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Prioridad</label>
-                    <select className="form-select" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                    <select className="form-select" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
                       <option>Alta</option>
                       <option>Media</option>
                       <option>Baja</option>
@@ -305,12 +300,7 @@ function TaskForm({ store }) {
                   </div>
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Fecha límite</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={dueDate} 
-                      onChange={(e) => setDueDate(e.target.value)} 
-                    />
+                    <input type="date" className="form-control" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                   </div>
                 </div>
                 <div className="d-flex gap-2 mt-4 pt-3 border-top">
@@ -330,19 +320,16 @@ function TaskForm({ store }) {
   );
 }
 
-function TaskDetail({ store }) {
+function TaskDetail({ store }: { store: ReturnType<typeof useTaskStore> }) {
   const { tasks, actions } = store;
   const { id } = useParams();
   const task = tasks.find((t) => String(t.id) === String(id));
   const navigate = useNavigate();
 
-  const [form, setForm] = useState(() =>
-    task || { title: "", description: "", priority: "Media", dueDate: "", done: false }
-  );
+  const [form, setForm] = useState<Task>(() => task || { id: "", title: "", description: "", priority: "Media", dueDate: "", done: false });
 
   useEffect(() => {
-    if (!task) return;
-    setForm(task);
+    if (task) setForm(task);
   }, [task]);
 
   if (!task) {
@@ -354,14 +341,14 @@ function TaskDetail({ store }) {
     );
   }
 
-  const onChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type, checked } = e.target as HTMLInputElement;
     setForm((f) => ({ ...f, [name]: type === "checkbox" ? checked : value }));
   };
 
-  const onSave = (e) => {
+  const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    actions.update(task.id, form);
+    await actions.update(task.id, form);
     navigate("/");
   };
 
@@ -375,53 +362,30 @@ function TaskDetail({ store }) {
             </button>
             <h1 className="h4 mb-0 fw-bold">Editar Tarea</h1>
           </div>
-          
+
           <div className="card shadow-sm border-0">
             <div className="card-body p-4">
               <form onSubmit={onSave}>
                 <div className="row g-3">
                   <div className="col-md-8">
                     <label className="form-label fw-semibold">Título</label>
-                    <input 
-                      className="form-control form-control-lg" 
-                      name="title" 
-                      value={form.title} 
-                      onChange={onChange} 
-                    />
+                    <input className="form-control form-control-lg" name="title" value={form.title} onChange={onChange} />
                   </div>
                   <div className="col-md-4 d-flex align-items-end">
                     <div className="form-check form-switch">
-                      <input 
-                        className="form-check-input" 
-                        type="checkbox" 
-                        id="done" 
-                        name="done" 
-                        checked={form.done} 
-                        onChange={onChange} 
-                      />
+                      <input className="form-check-input" type="checkbox" id="done" name="done" checked={form.done} onChange={onChange} />
                       <label htmlFor="done" className="form-check-label ms-2 fw-semibold">Completada</label>
                     </div>
                   </div>
                 </div>
                 <div className="mb-4 mt-4">
                   <label className="form-label fw-semibold">Descripción</label>
-                  <textarea 
-                    className="form-control" 
-                    name="description" 
-                    rows={4} 
-                    value={form.description} 
-                    onChange={onChange} 
-                  />
+                  <textarea className="form-control" name="description" rows={4} value={form.description} onChange={onChange} />
                 </div>
                 <div className="row g-3">
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Prioridad</label>
-                    <select 
-                      className="form-select" 
-                      name="priority" 
-                      value={form.priority} 
-                      onChange={onChange}
-                    >
+                    <select className="form-select" name="priority" value={form.priority} onChange={onChange}>
                       <option>Alta</option>
                       <option>Media</option>
                       <option>Baja</option>
@@ -429,23 +393,22 @@ function TaskDetail({ store }) {
                   </div>
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Fecha límite</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      name="dueDate" 
-                      value={form.dueDate || ""} 
-                      onChange={onChange} 
-                    />
+                    <input type="date" className="form-control" name="dueDate" value={form.dueDate || ""} onChange={onChange} />
                   </div>
                 </div>
                 <div className="d-flex gap-2 mt-4 pt-3 border-top">
                   <button className="btn btn-primary rounded-pill px-4" type="submit">
                     <i className="bi bi-check-circle me-1"></i>Guardar cambios
                   </button>
-                  <button 
-                    className="btn btn-outline-danger rounded-pill px-4" 
-                    type="button" 
-                    onClick={() => { if (confirm("¿Eliminar tarea?")) { actions.remove(task.id); navigate("/"); }}}
+                  <button
+                    className="btn btn-outline-danger rounded-pill px-4"
+                    type="button"
+                    onClick={async () => {
+                      if (confirm("¿Eliminar tarea?")) {
+                        await actions.remove(task.id);
+                        navigate("/");
+                      }
+                    }}
                   >
                     <i className="bi bi-trash me-1"></i>Eliminar
                   </button>
@@ -471,14 +434,14 @@ function About() {
           <div className="card shadow-sm border-0">
             <div className="card-body p-4">
               <p className="lead">
-                Este gestor de tareas demuestra las mejores prácticas en desarrollo frontend con React.
+                Este gestor de tareas demuestra mejores prácticas en desarrollo frontend con React + TypeScript y una API Express.
               </p>
               <div className="row mt-4">
                 <div className="col-md-6">
                   <h5 className="fw-semibold mb-3">Características</h5>
                   <ul className="list-unstyled">
                     <li className="mb-2"><i className="bi bi-check-circle text-success me-2"></i>Interfaz moderna y responsive</li>
-                    <li className="mb-2"><i className="bi bi-check-circle text-success me-2"></i>Persistencia local con localStorage</li>
+                    <li className="mb-2"><i className="bi bi-check-circle text-success me-2"></i>Persistencia con API propia</li>
                     <li className="mb-2"><i className="bi bi-check-circle text-success me-2"></i>Filtros avanzados y búsqueda</li>
                     <li className="mb-2"><i className="bi bi-check-circle text-success me-2"></i>Diseño con Bootstrap 5</li>
                   </ul>
@@ -486,10 +449,10 @@ function About() {
                 <div className="col-md-6">
                   <h5 className="fw-semibold mb-3">Tecnologías</h5>
                   <ul className="list-unstyled">
-                    <li className="mb-2"><span className="badge bg-primary me-2">React</span> Hooks y Estado</li>
-                    <li className="mb-2"><span className="badge bg-primary me-2">React Router</span> Navegación</li>
-                    <li className="mb-2"><span className="badge bg-primary me-2">Bootstrap</span> UI Components</li>
-                    <li className="mb-2"><span className="badge bg-primary me-2">API</span> JSONPlaceholder</li>
+                    <li className="mb-2"><span className="badge bg-primary me-2">React</span> + TypeScript</li>
+                    <li className="mb-2"><span className="badge bg-primary me-2">React Router</span></li>
+                    <li className="mb-2"><span className="badge bg-primary me-2">Express</span> + MongoDB</li>
+                    <li className="mb-2"><span className="badge bg-primary me-2">Vite</span></li>
                   </ul>
                 </div>
               </div>
@@ -512,7 +475,15 @@ export default function TaskManagerApp() {
         <Route path="/nueva" element={<TaskForm store={store} />} />
         <Route path="/tarea/:id" element={<TaskDetail store={store} />} />
         <Route path="/about" element={<About />} />
-        <Route path="*" element={<div className="container py-5"><div className="alert alert-danger">Ruta no encontrada</div><Link to="/" className="btn btn-primary mt-2">Ir al inicio</Link></div>} />
+        <Route
+          path="*"
+          element={
+            <div className="container py-5">
+              <div className="alert alert-danger">Ruta no encontrada</div>
+              <Link to="/" className="btn btn-primary mt-2">Ir al inicio</Link>
+            </div>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

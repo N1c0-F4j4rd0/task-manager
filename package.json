@@ -2,7 +2,10 @@
   "name": "task-manager",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["frontend", "backend"],
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
   "main": "index.js",
   "dependencies": {
@@ -113,7 +116,10 @@
     "yocto-queue": "^0.1.0"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
