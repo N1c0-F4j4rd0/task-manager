@@ -1,23 +1,43 @@
-import type { Task, TaskServer } from "../types";
+import { fetchWithAuth } from "./auth";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const RAW = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:5000";
+const API_URL = RAW.replace(/\/+$/, "");
 
-async function http<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(body || `HTTP ${res.status}`);
-  }
-  return res.status !== 204 ? (await res.json()) as T : (null as T);
-}
+export type TaskServer = {
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  priority?: "Alta" | "Media" | "Baja";
+  dueDate?: string;
+};
 
 export const api = {
-  list: () => http<TaskServer[]>("/tasks"),
-  create: (payload: TaskServer) => http<TaskServer>("/tasks", { method: "POST", body: JSON.stringify(payload) }),
-  update: (id: string, payload: TaskServer) =>
-    http<TaskServer>(`/tasks/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  remove: (id: string) => http<{ ok: boolean }>(`/tasks/${id}`, { method: "DELETE" }),
+  async list(): Promise<TaskServer[]> {
+    const res = await fetchWithAuth(`${API_URL}/api/tasks`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  async create(task: TaskServer): Promise<TaskServer> {
+    const res = await fetchWithAuth(`${API_URL}/api/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(task),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  async update(id: string, task: TaskServer): Promise<TaskServer> {
+    const res = await fetchWithAuth(`${API_URL}/api/tasks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(task),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  async remove(id: string): Promise<void> {
+    const res = await fetchWithAuth(`${API_URL}/api/tasks/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+  },
 };

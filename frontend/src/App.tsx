@@ -3,6 +3,10 @@ import { BrowserRouter, Routes, Route, Link, useNavigate, useParams } from "reac
 import "bootstrap/dist/css/bootstrap.min.css";
 import { api as server } from "./services/api";
 import type { Task, TaskServer, Priority } from "./types";
+import { AuthProvider, useAuth } from "./auth/AuthProvider";
+import RequireAuth from "./auth/RequireAuth";
+import LoginPage from "./pages/Login";
+import RegisterPage from "./pages/Register";
 
 // Adaptadores servidor ⇄ UI
 const fromServer = (t: TaskServer): Task => ({
@@ -67,6 +71,7 @@ function useTaskStore() {
 }
 
 function AppNavbar() {
+  const { user, logout } = useAuth();
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-gradient-primary">
       <div className="container">
@@ -80,16 +85,32 @@ function AppNavbar() {
           <span className="navbar-toggler-icon"></span>
         </button>
         <div className="collapse navbar-collapse" id="nav">
-          <ul className="navbar-nav ms-auto gap-2">
+          <ul className="navbar-nav ms-auto gap-2 align-items-center">
             <li className="nav-item">
               <Link className="nav-link" to="/">Inicio</Link>
             </li>
-            <li className="nav-item">
-              <Link className="nav-link btn btn-outline-light btn-sm" to="/nueva">+ Nueva Tarea</Link>
-            </li>
-            <li className="nav-item">
-              <Link className="nav-link" to="/about">Acerca</Link>
-            </li>
+            {user ? (
+              <>
+                <li className="nav-item">
+                  <Link className="nav-link btn btn-outline-light btn-sm" to="/nueva">+ Nueva Tarea</Link>
+                </li>
+                <li className="nav-item">
+                  <span className="nav-link small opacity-75">{user.email}</span>
+                </li>
+                <li className="nav-item">
+                  <button className="btn btn-light btn-sm" onClick={logout}>Salir</button>
+                </li>
+              </>
+            ) : (
+              <>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/login">Ingresar</Link>
+                </li>
+                <li className="nav-item">
+                  <Link className="btn btn-light btn-sm" to="/register">Crear cuenta</Link>
+                </li>
+              </>
+            )}
           </ul>
         </div>
       </div>
@@ -466,25 +487,50 @@ function About() {
 
 export default function TaskManagerApp() {
   const store = useTaskStore();
-
   return (
-    <BrowserRouter>
-      <AppNavbar />
-      <Routes>
-        <Route path="/" element={<TaskList store={store} />} />
-        <Route path="/nueva" element={<TaskForm store={store} />} />
-        <Route path="/tarea/:id" element={<TaskDetail store={store} />} />
-        <Route path="/about" element={<About />} />
-        <Route
-          path="*"
-          element={
-            <div className="container py-5">
-              <div className="alert alert-danger">Ruta no encontrada</div>
-              <Link to="/" className="btn btn-primary mt-2">Ir al inicio</Link>
-            </div>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppNavbar />
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <TaskList store={store} />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/nueva"
+            element={
+              <RequireAuth>
+                <TaskForm store={store} />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/tarea/:id"
+            element={
+              <RequireAuth>
+                <TaskDetail store={store} />
+              </RequireAuth>
+            }
+          />
+          <Route path="/about" element={<About />} />
+          <Route
+            path="*"
+            element={
+              <div className="container py-5">
+                <div className="alert alert-danger">Ruta no encontrada</div>
+                <Link to="/" className="btn btn-primary mt-2">Ir al inicio</Link>
+              </div>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

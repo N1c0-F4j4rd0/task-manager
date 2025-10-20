@@ -1,9 +1,11 @@
 import { Router } from "express";
 import Task from "../models/Task.js";
 import mongoose from "mongoose";
+import { requireAuth, authorizeRoles } from "../middleware/auth.js";
 
 const router = Router();
 
+router.use(requireAuth);
 // GET /api/tasks
 router.get("/", async (_req, res) => {
   const docs = await Task.find().sort({ createdAt: -1 }).lean();
