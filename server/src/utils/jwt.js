@@ -1,4 +1,4 @@
-// src/utils/jwt.js
+
 import "dotenv/config";
 import jwt from "jsonwebtoken";
 
