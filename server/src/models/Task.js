@@ -6,10 +6,20 @@ const TaskSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     completed: { type: Boolean, default: false },
     priority: { type: String, enum: ["Alta", "Media", "Baja"], default: "Media" },
-    // guardamos como string YYYY-MM-DD para encajar con el <input type="date">
-    dueDate: { type: String, default: "" }
+    dueDate: { type: String, default: "" },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true }, // 👈 dueño
   },
-  { timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" } }
+  { timestamps: true }
 );
 
-export default mongoose.model("Task", TaskSchema, "tasks");
+// para devolver "id" en lugar de "_id"
+TaskSchema.set("toJSON", {
+  virtuals: true,
+  versionKey: false,
+  transform(_doc, ret) {
+    ret.id = ret._id;
+    delete ret._id;
+  },
+});
+
+export default mongoose.model("Task", TaskSchema);

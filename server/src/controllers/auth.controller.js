@@ -19,7 +19,6 @@ function refreshCookieOptions() {
 function buildAccessToken(user) {
   return signAccessToken({ sub: user._id.toString(), role: user.role, email: user.email });
 }
-
 async function persistRefreshToken(userId, jti, days = 7) {
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   await RefreshToken.create({ user: userId, jti, expiresAt });

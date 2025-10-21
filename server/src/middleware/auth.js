@@ -1,5 +1,5 @@
 import { verifyAccessToken } from "../utils/jwt.js";
-import { login } from "../controllers/auth.controller.js";
+
 
 export function requireAuth(req, res, next) {
   try {
