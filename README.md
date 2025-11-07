@@ -1,87 +1,113 @@
-Task Manager — React (TS) + Express + MongoDB
+# ✅ Task Manager — React (TS) + Express + MongoDB + Docker + Testing
 
-Aplicación full-stack de gestión de tareas con React + TypeScript (Vite) en el frontend, Express + Mongoose en el backend y MongoDB como base de datos. Este README explica cómo clonar, configurar y correr todo el proyecto en local.
+Aplicación **full-stack** para gestión de tareas:
 
-🚀 Stack
+- **Frontend:** React + TypeScript + Vite + Bootstrap  
+- **Backend:** Node.js (Express) + Mongoose + JWT + Roles  
+- **Base de datos:** MongoDB  
+- **Testing automatizado:**
+  - Backend: Vitest + Supertest + mongodb-memory-server (sin tocar tu BD real)
+  - Frontend: Vitest + React Testing Library + JSDOM
+- **Dockerización completa:** frontend + backend + MongoDB
 
-Frontend: React 18 + TypeScript + Vite
+---
+---
 
-Backend: Node.js + Express + Mongoose
+## 🚀 Requisitos
 
-DB: MongoDB (recomendado en Docker)
+| Herramienta | Versión mínima |
+|-------------|----------------|
+| Node.js     | **20.19.0 o superior** |
+| npm         | incluido con Node |
+| Docker / Docker Desktop | opcional pero recomendado |
+| MongoDB Compass | opcional |
 
-Herramientas: Nodemon, Dotenv, Bootstrap
+---
 
-✅ Requisitos
+## 🔧 Instalación del proyecto
 
-Node.js 18+ y npm
+Clonar el repositorio:
 
-Docker (opcional pero recomendado para MongoDB)
+```sh
+git clone <URL-DEL-REPO>.git
+cd task-manager
 
-Si prefieres sin Docker, puedes usar mongod nativo.
+✅ Backend (server)
+1️⃣ Crear variables de entorno
 
-⚙️ Variables de entorno
-Backend (server/.env)
+server/.env
+contenido:
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/task_manager
 CORS_ORIGIN=http://localhost:5173
 
-Frontend (.env en la raíz)
-VITE_API_URL=http://127.0.0.1:5000/api
+JWT_ACCESS_SECRET=secret123
+JWT_REFRESH_SECRET=secret123
+JWT_ACCESS_EXPIRES=15m
+JWT_REFRESH_EXPIRES=7d
 
-🗄️ Opción A — Levantar MongoDB con Docker (recomendado)
-
-En cualquier carpeta (no importa cuál):
-docker run -d --name mongo \
-  -p 27017:27017 \
-  -v mongo-data:/data/db \
-  mongo:7
-
-Verifica:
-docker ps --filter name=mongo
-
-Conéctate con Compass (opcional):
-mongodb://localhost:27017
-
-
-🧪 Opción B — MongoDB nativo (sin Docker)
-
-Ubuntu/Debian (ejemplo):
-sudo systemctl start mongod
-sudo systemctl enable mongod
-
-Comprueba que escucha en 27017:
-ss -ltnp | grep 27017
-
-
-▶️ Arranque rápido (todo)
-git clone <URL-DEL-REPO>.git
-cd task-manager
-
-
-Levantar MongoDB
-Con Docker: (una sola vez)
-docker run -d --name mongo -p 27017:27017 -v mongo-data:/data/db mongo:7
-O con servicio nativo:
-sudo systemctl start mongod
-
-Backend
+2️⃣ Instalar dependencias
 cd server
-cp .env.example .env  # si hay ejemplo, si no crea el .env como arriba
 npm install
+
+3️⃣ Ejecutar servidor en modo desarrollo
 npm run dev
-# → "MongoDB conectado ..." y "API escuchando en http://127.0.0.1:5000"
 
 
-Frontend (en otra terminal)
-cd task-manager    # raíz del proyecto (asegúrate de estar arriba de /server)
-cp .env.example .env  # si hay ejemplo, si no crea el .env como arriba
+✅ Frontend (React)
+1️⃣ Crear archivo .env
+frontend/.env
+
+VITE_API_URL=http://127.0.0.1:5000
+
+2️⃣ Instalar dependencias
+cd frontend
 npm install
+
+3️⃣ Ejecutar frontend
 npm run dev
-# → Vite on http://localhost:5173
 
 
-Prueba
-- Abre http://localhost:5173
-- Crea/edita/elimina tareas en la UI
-- Verifica en Compass: DB task_manager → colección tasks
+🧪 Pruebas automatizadas
+El proyecto incluye 15 pruebas automáticas (backend + frontend)
+
+Backend (Vitest + Supertest + mongo-memory-server)
+Permite ejecutar la API sin usar Mongo real.
+
+Ejecutar:
+cd server
+npm test
+
+Frontend (Vitest + React Testing Library + JSDOM)
+Ejecutar:
+cd frontend
+npm test
+
+🐳 Docker — Levantar TODA la aplicación con 1 comando
+El proyecto incluye:
+
+✅ MongoDB
+✅ Backend (Express)
+✅ Frontend (React build con Nginx)
+
+Ejecutar en la raíz del proyecto:
+docker compose up --build
+
+Parar contenedores:
+docker compose down
+
+🔍 Probar la aplicación
+
+Abre: http://localhost:5173
+Registra un usuario
+Crea / edita / elimina tareas
+Verifica en MongoDB Compass:
+mongodb://localhost:27017/task_manager
+
+
+✨ Características principales
+✔ Login / Registro con JWT + Refresh Token (cookies httpOnly)
+✔ CRUD de tareas protegido por sesión
+✔ Roles (user / admin)
+✔ Testing completo backend + frontend
+✔ Docker listo para despliegue

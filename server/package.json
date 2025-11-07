@@ -5,15 +5,27 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "vitest --run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "bcrypt": "^5.1.0",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "mongoose": "^8.5.0"
+    "express-rate-limit": "^6.7.0",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^8.5.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "mongodb-memory-server": "^8.16.1",
+    "nodemon": "^3.1.0",
+    "patch-package": "^8.0.1",
+    "supertest": "^6.3.4",
+    "vitest": "^1.6.1"
   }
 }
