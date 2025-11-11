@@ -8,14 +8,11 @@ import User from "../src/models/User.js";
 let mongoServer;
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  process.env.MONGODB_URI = mongoServer.getUri();
-  await mongoose.connect(process.env.MONGODB_URI);
+  await mongoose.connect("mongodb://127.0.0.1:27017/task_manager_test");
 });
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongoServer.stop();
 });
 
 describe("Auth - registro/login/refresh/me", () => {
